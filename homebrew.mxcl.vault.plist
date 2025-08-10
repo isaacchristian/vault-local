@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>homebrew.mxcl.vault</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>
+            DOCKER="/usr/local/bin/docker"
+            [ -x "$DOCKER" ] || DOCKER="/opt/homebrew/bin/docker"
+
+            # Wait for Docker daemon
+            until "$DOCKER" info >/dev/null 2>&amp;1; do
+                echo "Waiting for Docker Desktop to start..."
+                sleep 5
+            done
+
+            # Wait for vault-postgres container
+            until "$DOCKER" ps --filter "name=vault-postgres" --filter "status=running" --format '{{.Names}}' | grep -q '^vault-postgres$'; do
+                echo "Waiting for vault-postgres container..."
+                sleep 5
+            done
+
+            # Start Vault
+            exec /opt/homebrew/opt/vault/bin/vault server -config /absolute/path/vault.d/vault.hcl
+        </string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/absolute/path/vault.d/logs/vault.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/absolute/path/vault.d/logs/vault.err.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/homebrew/var</string>
+</dict>
+</plist>
