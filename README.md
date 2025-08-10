@@ -115,6 +115,8 @@ Once you have your postgresql backend set up and added to your vault.hcl configu
 
 Note that TLS is disabled, if you'd like to have it enabled, change it to `0` and add the necessary lines that are currently commented out.
 
+* Recommended putting this within your `vault.d` directory as a `vault.hcl` config file.
+
 ```
 storage "postgresql" {
   connection_url = "postgresql://postgres:[password]@localhost:5432/postgres"
