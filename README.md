@@ -220,4 +220,5 @@ Check that everything is running smoothly with `vault status` and you should see
 ## References
 
 [Vault PostgreSQL Configuration](https://developer.hashicorp.com/vault/docs/configuration/storage/postgresql)
+
 [Vault - PostgrSQL as a Backend](https://devops-db.com/vault-postgresql-as-backend/)
