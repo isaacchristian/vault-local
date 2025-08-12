@@ -169,6 +169,11 @@ Run this command to ensure vault is running on your macOS as a service:
 
 Now that you've got vault running as a service, you can close out the terminal where you started the server. 
 
+Run `vault status` to see if everything is configured as you wanted. You should see your seal method, as well as `postgresql` storage type and HA (if you had it enabled).
+
+<img width="381" height="200" alt="Screenshot 2025-08-12 at 11 43 09" src="https://github.com/user-attachments/assets/f7534ae4-6a5e-4445-800a-7c96405d5eb3" />
+
+
 ## Troubleshooting 😤
 
 ### PostgreSQL & Vault Migration
