@@ -8,7 +8,7 @@ I downloaded Vault through Homebrew and I knew I wanted Vault running in the bac
 
 Since Vault was downloaded with homebrew, my `.plist` file has content pointing to my `/opt/homebrew` directory. If you downloaded the Vault binary a different way, ensure your paths are pointed to the right place before starting these processes.
 
-For my storage backend, I wanted to learn a little bit more about databases and use a PostgreSQL Docker Container. 
+For my storage backend, I wanted to learn a little bit more about databases and use a PostgreSQL Container in my homelab server. 
 
 It was fun learning throughout the process and thought to show it here for others in case they were running into the same issues. 
 
@@ -16,57 +16,33 @@ Thus, here we are! 🤓
 
 ## PostgreSQL 📈
 
-One thing I'll note is make sure your Docker Engine or Docker Desktop starts when you sign in to your computer and ensure your container stays running to prevent errors.
+I created a CentOS container in Proxmox using one of the provided templates. 
 
-I would also recommend running `docker update --restart always vault-postgres` to ensure your container starts automatically when Docker Desktop starts as well.
+<img width="896" height="515" alt="Screenshot 2025-08-11 at 16 01 00" src="https://github.com/user-attachments/assets/97e08cd5-64bf-46d4-b8a8-1cd629b93df2" />
 
-I created a `docker_postgres_install.sh` script to create a volume named `vault` as well as running the `vault-postgres` image with the port, user and password.
+
+Once within the container, I needed to run `dnf upgrade -y` to install all the necessary packages. Afterwards I installed the PostgreSQL repo, installed the server, initialized, enabled to start at boot and started the service. This script can be found within the `px_psql_container.sh` file.
 
 * Note to replace your password
-* Change execution permissions with `chmod +x docker_postgres_install.sh`
+* Change execution permissions with `chmod +x px_psql_container.sh`
+
+1. Connect to the PostgreSQL shell as `postgres` root user:
 
 ```
-docker volume create --name vault
-
-docker run --name vault-postgres \
-    -p 5432:5432 \
-    -e POSTGRES_USER=vault \
-    -e POSTGRES_PASSWORD='1a2b3c4d5e6f7g8h90' \
-    -v vault:/var/lib/postgresql/data \
-    postgres 
-
-echo "Downloading PostgreSQL Container Image..."
-
-# List the latest running container
-docker container ls --latest
+sudo su postgres
 ```
 
-1. Connect to the postgres container as root with privileged access
-
-`docker exec -it -u root --privileged vault-postgres /bin/bash`
-
-2. [OPTIONAL] Connect to vault database. This command skips TCP connection and uses a Unix socket.
-
-`psql -U vault`
-
-2. If you want to connect to the vault database using TCP, you can use:
-
-`psql -h localhost -p 5432 -U vault`
-
-3. The vault database should have already been created, as well as the vault user but in case it's not:
+2. Enter the PostgreSQL shell with:
 
 ```
-CREATE DATABASE vault;
-CREATE USER vault WITH PASSWORD '1a2b3c4d5e6f7g8h90';
-
-# If not already connected, switch to the vault database
-
-\c vault;
+psql
 ```
 
-4. Create a new table in the vault database
+3. Create a new role and table in the postgres database
 
 ```
+CREATE ROLE vault WITH LOGIN PASSWORD '1a2b3c4d5e6f7g8h9i0j';
+
 CREATE TABLE vault_kv_store (
     parent_path TEXT COLLATE "C" NOT NULL,
     path TEXT COLLATE "C",
@@ -90,22 +66,38 @@ CREATE TABLE vault_ha_locks (
 # Output: CREATE TABLE
 
 # Grant permissions to the vault user
-GRANT ALL PRIVILEGES ON DATABASE vault TO vault;
+GRANT ALL PRIVILEGES ON DATABASE postgres TO vault;
 # Output: GRANT
 
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO vault;
 # Output: GRANT
 ```
 
-5. Test the connection to the vault database in a new terminal:
+4. Find your `pg_hba.conf` & `postgresql.conf` files to ensure which hosts are allowed to connect and that the server is listening on port 5432.
 
-`psql postgresql://vault:1a2b3c4d5e6f7g8h90@localhost:5432/vault`
+In your `pg_hba.conf`
 
-6. Once connection is successful, add the storage line to the vault.hcl configuration file.
+<img width="636" height="309" alt="Screenshot 2025-08-12 at 11 27 17" src="https://github.com/user-attachments/assets/a534dad7-164f-42ee-8ddd-c862a7d356ee" />
+
+
+
+In your `postgresql.conf`
+
+<img width="747" height="212" alt="Screenshot 2025-08-12 at 11 29 04" src="https://github.com/user-attachments/assets/296271bc-86a0-46a8-96bd-726f835ea046" />
+ 
+
+
+5. Run `hostname -I` in your container to get the correct IP. 
+
+6. Test the connection to the postgres database in a new terminal:
+
+`psql postgresql://vault:<password>@<IP>:5432/postgres`
+
+7. Once connection is successful, add the storage line to the vault.hcl configuration file.
 
 ```
 storage "postgresql" {
-  connection_url = "postgresql://vault:<password>@localhost:5432/vault"
+  connection_url = "postgresql://vault:<password>@<IP>:5432/postgres"
 }
 ```
 
@@ -115,11 +107,11 @@ Once you have your postgresql backend set up and added to your vault.hcl configu
 
 Note that TLS is disabled, if you'd like to have it enabled, change it to `0` and add the necessary lines that are currently commented out.
 
-* Recommended putting this within your `vault.d` directory as a `vault.hcl` config file.
+* Recommended putting this within your `vault.d` directory saved as a `vault.hcl` config file.
 
 ```
 storage "postgresql" {
-  connection_url = "postgresql://postgres:[password]@localhost:5432/postgres"
+  connection_url = "postgresql://vault:<password>@<IP>:5432/postgres"
 }
 
 listener "tcp" {
@@ -164,7 +156,7 @@ Run `vault login` with the root token that was provided while initializing.
 
 Once the vault server is initialized and unsealed, open a new terminal to add Vault as a service so it can run in the background on you macOS.
 
-Within your `~/Library/LaunchAgents` directory, create a file named `homebrew.mxcl.vault.plist`. I added a few lines for Docker as Vault requires the PostgreSQL container to run in order to write data to it. If the container fails to start, it will affect the Vault server and you'll get some errors.
+Within your `~/Library/LaunchAgents` directory, create a file named `homebrew.mxcl.vault.plist`. I added a few lines for Proxmox as Vault requires the PostgreSQL container to run in order to write data to it. If the container fails to start, it will affect the Vault server and you'll get some errors.
 
 Add the file contents and run the following, while the vault server is still running.
 
@@ -199,7 +191,7 @@ If you're receiving:
 Error checking seal status: Get "http://127.0.0.1:8200/v1/sys/seal-status": dial tcp 127.0.0.1:8200: connect: connection refused
 ```
 
-Launchd is in a loop and you may have to unload and reload the Vault service. Ensure the Docker Desktop is running as well as your `vault-postgres` container.
+Launchd is in a loop and you may have to unload and reload the Vault service. Ensure PostgreSQL container is running.
 
 If your vault server is still running manually, run:
 
@@ -223,4 +215,6 @@ Check that everything is running smoothly with `vault status` and you should see
 
 [Vault PostgreSQL Configuration](https://developer.hashicorp.com/vault/docs/configuration/storage/postgresql)
 
-[Vault - PostgrSQL as a Backend](https://devops-db.com/vault-postgresql-as-backend/)
+[How to Install PostgreSQL on CentOS 9 + Create Roles and Databases](https://www.hostinger.com/tutorials/how-to-install-postgresql-on-centos)
+
+[PostgreSQL Download](https://www.postgresql.org/download/)
